@@ -33,7 +33,17 @@ export default function RegisterPage({ onBack, onRegistered }: Props) {
         setLoading(true);
 
         try {
-            // 1. Insert organization
+            // 1. Sign up admin user first — so we have an authenticated session for RLS
+            const { data: auth, error: authError } = await supabase.auth.signUp({
+                email: email.trim(),
+                password,
+                options: {
+                    data: { name: adminName.trim(), role: 'admin', rate: 0 }
+                }
+            });
+            if (authError || !auth.user) throw new Error(authError?.message || 'Signup failed.');
+
+            // 2. Insert organization now that we're authenticated (satisfies RLS)
             const { data: org, error: orgError } = await supabase
                 .from('organizations')
                 .insert({ name: companyName.trim(), slug })
@@ -44,17 +54,7 @@ export default function RegisterPage({ onBack, onRegistered }: Props) {
                 throw orgError;
             }
 
-            // 2. Sign up admin user with metadata for the trigger
-            const { data: auth, error: authError } = await supabase.auth.signUp({
-                email: email.trim(),
-                password,
-                options: {
-                    data: { name: adminName.trim(), role: 'admin', org_id: org.id, rate: 0 }
-                }
-            });
-            if (authError || !auth.user) throw new Error(authError?.message || 'Signup failed.');
-
-            // 3. Upsert profile in case trigger ran or didn't
+            // 3. Upsert profile with org_id (trigger may have already created it without org_id)
             await supabase.from('profiles').upsert({
                 id: auth.user.id,
                 name: adminName.trim(),
