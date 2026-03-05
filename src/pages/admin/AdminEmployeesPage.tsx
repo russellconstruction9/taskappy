@@ -18,7 +18,7 @@ export default function AdminEmployeesPage({ user }: Props) {
     const [form, setForm] = useState<EmpForm>({ name: '', pin: '', rate: '' });
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
-    
+
     // View/Edit employee state
     const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
     const [showViewModal, setShowViewModal] = useState(false);
@@ -27,7 +27,7 @@ export default function AdminEmployeesPage({ user }: Props) {
     const [orgSlug, setOrgSlug] = useState('');
 
     useEffect(() => { fetchEmployees(); fetchOrgSlug(); }, [user.orgId]);
-    
+
     const fetchOrgSlug = async () => {
         if (!user.orgId) return;
         const org = await getOrgById(user.orgId);
@@ -44,7 +44,7 @@ export default function AdminEmployeesPage({ user }: Props) {
     const handleAdd = async () => {
         setError('');
         if (!form.name.trim() || !form.pin.trim()) { setError('Name and PIN are required.'); return; }
-        if (form.pin.length < 4) { setError('PIN must be at least 4 characters.'); return; }
+        if (form.pin.length < 8) { setError('PIN must be at least 8 characters.'); return; }
         setSaving(true);
 
         try {
@@ -81,7 +81,7 @@ export default function AdminEmployeesPage({ user }: Props) {
             alert(err.message || 'Failed to delete employee.');
         }
     };
-    
+
     const handleViewEmployee = (emp: Employee) => {
         setSelectedEmployee(emp);
         setEditForm({ name: emp.name, rate: emp.rate.toString() });
@@ -89,7 +89,7 @@ export default function AdminEmployeesPage({ user }: Props) {
         setError('');
         setShowViewModal(true);
     };
-    
+
     const handleSaveEdit = async () => {
         if (!selectedEmployee) return;
         setError('');
@@ -110,7 +110,7 @@ export default function AdminEmployeesPage({ user }: Props) {
             setSaving(false);
         }
     };
-    
+
     const getSyntheticEmail = (name: string) => {
         const cleanName = name.trim().toLowerCase().replace(/\s+/g, '.');
         return `${cleanName}@${orgSlug}.taskpoint.local`;
@@ -177,7 +177,7 @@ export default function AdminEmployeesPage({ user }: Props) {
                         </div>
                         <div className="modal-body">
                             {error && <div style={{ background: '#fee2e2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', fontSize: '0.85rem', marginBottom: 16 }}>{error}</div>}
-                            
+
                             {/* Avatar and Name Header */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
                                 <div style={{ width: 56, height: 56, borderRadius: '50%', background: selectedEmployee.role === 'admin' ? 'var(--color-brand)' : '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '1.2rem', color: '#fff', flexShrink: 0 }}>
@@ -194,7 +194,7 @@ export default function AdminEmployeesPage({ user }: Props) {
                                     </span>
                                 </div>
                             </div>
-                            
+
                             {/* Details */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                                 <div className="input-group">
@@ -207,7 +207,7 @@ export default function AdminEmployeesPage({ user }: Props) {
                                         </div>
                                     )}
                                 </div>
-                                
+
                                 {selectedEmployee.role !== 'admin' && (
                                     <div className="input-group">
                                         <label className="input-label">Login Information</label>
@@ -273,8 +273,8 @@ export default function AdminEmployeesPage({ user }: Props) {
                             </div>
                             <div className="input-group">
                                 <label className="input-label">PIN (password) *</label>
-                                <input className="input" type="password" placeholder="At least 4 digits" value={form.pin} onChange={e => setForm(f => ({ ...f, pin: e.target.value }))} inputMode="numeric" />
-                                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-3)' }}>Employee uses this PIN to log in</span>
+                                <input className="input" type="password" placeholder="At least 8 characters" value={form.pin} onChange={e => setForm(f => ({ ...f, pin: e.target.value }))} />
+                                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-3)' }}>Employee uses this PIN/password to log in (min 8 characters)</span>
                             </div>
                             <div className="input-group">
                                 <label className="input-label">Hourly Rate ($)</label>

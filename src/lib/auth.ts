@@ -136,7 +136,10 @@ export async function createEmployee(opts: {
     // This avoids disrupting the admin's active session
     const res = await fetch(`${NEON_AUTH_URL}/sign-up/email`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'Origin': window.location.origin,
+        },
         body: JSON.stringify({
             email: syntheticEmail,
             password: pin,
