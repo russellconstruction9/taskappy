@@ -1,16 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { getJobsByOrg, createJob, updateJob, toggleJobActive, deleteJob } from '../../lib/db';
 import { UserProfile, Job } from '../../types';
+import Modal from '../../components/Modal';
+import AlertDialog from '../../components/AlertDialog';
+import { useModal } from '../../hooks/useModal';
 
 interface Props { user: UserProfile; }
 
 export default function AdminJobsPage({ user }: Props) {
     const [jobs, setJobs] = useState<Job[]>([]);
     const [loading, setLoading] = useState(true);
-    const [showModal, setShowModal] = useState(false);
+    const modal = useModal();
     const [editing, setEditing] = useState<Job | null>(null);
     const [form, setForm] = useState({ name: '', address: '' });
-    const [saving, setSaving] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
     useEffect(() => { fetchJobs(); }, [user.orgId]);
 
@@ -21,20 +24,19 @@ export default function AdminJobsPage({ user }: Props) {
         setLoading(false);
     };
 
-    const openCreate = () => { setEditing(null); setForm({ name: '', address: '' }); setShowModal(true); };
-    const openEdit = (job: Job) => { setEditing(job); setForm({ name: job.name, address: job.address }); setShowModal(true); };
+    const openCreate = () => { setEditing(null); setForm({ name: '', address: '' }); modal.show(); };
+    const openEdit = (job: Job) => { setEditing(job); setForm({ name: job.name, address: job.address }); modal.show(); };
 
     const handleSave = async () => {
         if (!form.name.trim()) return;
-        setSaving(true);
+        modal.setSaving(true);
         if (editing) {
             await updateJob(editing.id, { name: form.name.trim(), address: form.address.trim() });
         } else {
             await createJob({ name: form.name.trim(), address: form.address.trim(), orgId: user.orgId });
         }
-        setShowModal(false);
+        modal.hide();
         fetchJobs();
-        setSaving(false);
     };
 
     const toggleActive = async (job: Job) => {
@@ -42,18 +44,19 @@ export default function AdminJobsPage({ user }: Props) {
         setJobs(prev => prev.map(j => j.id === job.id ? { ...j, active: !j.active } : j));
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Delete this job site?')) return;
-        await deleteJob(id);
-        setJobs(prev => prev.filter(j => j.id !== id));
+    const confirmDelete = async () => {
+        if (!deleteTarget) return;
+        await deleteJob(deleteTarget);
+        setJobs(prev => prev.filter(j => j.id !== deleteTarget));
+        setDeleteTarget(null);
     };
 
     return (
         <div>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, gap: 12 }}>
+            <div className="admin-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                 <div>
-                    <h1 style={{ fontSize: '1.4rem', fontWeight: 800, letterSpacing: '-0.02em', margin: '0 0 4px' }}>Job Sites</h1>
-                    <p style={{ margin: 0, color: 'var(--color-text-2)', fontSize: '0.88rem' }}>{jobs.filter(j => j.active).length} active locations</p>
+                    <h1>Job Sites</h1>
+                    <p>{jobs.filter(j => j.active).length} active locations</p>
                 </div>
                 <button className="btn btn-primary" onClick={openCreate}>+ Add Job Site</button>
             </div>
@@ -79,7 +82,7 @@ export default function AdminJobsPage({ user }: Props) {
                                 <td>
                                     <div style={{ fontWeight: 600, color: 'var(--color-text)' }}>{job.name}</div>
                                 </td>
-                                <td style={{ color: 'var(--color-text-2)' }}>{job.address || '—'}</td>
+                                <td style={{ color: 'var(--color-text-2)' }}>{job.address || '\u2014'}</td>
                                 <td>
                                     <button
                                         className={`badge ${job.active ? 'badge-active' : 'badge-pending'}`}
@@ -93,7 +96,7 @@ export default function AdminJobsPage({ user }: Props) {
                                 <td>
                                     <div style={{ display: 'flex', gap: 6 }}>
                                         <button className="btn btn-ghost btn-sm" onClick={() => openEdit(job)}>Edit</button>
-                                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(job.id)}>Delete</button>
+                                        <button className="btn btn-danger btn-sm" onClick={() => setDeleteTarget(job.id)}>Delete</button>
                                     </div>
                                 </td>
                             </tr>
@@ -102,32 +105,39 @@ export default function AdminJobsPage({ user }: Props) {
                 </table>
             </div>
 
-            {showModal && (
-                <div className="modal-backdrop" onClick={() => setShowModal(false)}>
-                    <div className="modal" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h2 className="modal-title">{editing ? 'Edit Job Site' : 'Add Job Site'}</h2>
-                            <button className="icon-btn" onClick={() => setShowModal(false)}>✕</button>
-                        </div>
-                        <div className="modal-body">
-                            <div className="input-group">
-                                <label className="input-label">Site Name *</label>
-                                <input className="input" placeholder="e.g. 123 Main St — Johnson Roof" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-                            </div>
-                            <div className="input-group">
-                                <label className="input-label">Address</label>
-                                <input className="input" placeholder="123 Main St, City, ST" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
-                            </div>
-                        </div>
-                        <div className="modal-footer">
-                            <button className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancel</button>
-                            <button className="btn btn-primary" onClick={handleSave} disabled={saving || !form.name.trim()}>
-                                {saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Job Site'}
-                            </button>
-                        </div>
-                    </div>
+            <Modal
+                open={modal.open}
+                onClose={modal.hide}
+                title={editing ? 'Edit Job Site' : 'Add Job Site'}
+                maxWidth="sm"
+                footer={
+                    <>
+                        <button className="btn btn-ghost" onClick={modal.hide}>Cancel</button>
+                        <button className="btn btn-primary" onClick={handleSave} disabled={modal.saving || !form.name.trim()}>
+                            {modal.saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Job Site'}
+                        </button>
+                    </>
+                }
+            >
+                <div className="input-group">
+                    <label className="input-label">Site Name *</label>
+                    <input className="input" placeholder="e.g. 123 Main St — Johnson Roof" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
                 </div>
-            )}
+                <div className="input-group">
+                    <label className="input-label">Address</label>
+                    <input className="input" placeholder="123 Main St, City, ST" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
+                </div>
+            </Modal>
+
+            <AlertDialog
+                open={deleteTarget !== null}
+                title="Delete Job Site"
+                message="Delete this job site? This cannot be undone."
+                confirmLabel="Delete"
+                onConfirm={confirmDelete}
+                onCancel={() => setDeleteTarget(null)}
+                destructive
+            />
         </div>
     );
 }

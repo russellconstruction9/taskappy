@@ -3,7 +3,6 @@ import {
     getTasksByEmployee, updateTaskStatus,
     getSubTasksByTaskId, toggleSubTask, updateSubTaskNotes, updateSubTaskPhoto, getSubTaskCountsByTaskIds,
 } from '../../lib/db';
-import { supabase } from '../../lib/supabase';
 import { UserProfile, Task, SubTask } from '../../types';
 
 interface Props { user: UserProfile; }
@@ -124,30 +123,18 @@ export default function EmployeeTasksPage({ user }: Props) {
         if (!file || !photoTargetId) return;
         setUploadingPhotoId(photoTargetId);
         try {
-            const ext = file.name.split('.').pop() || 'jpg';
-            const path = `subtask-photos/${photoTargetId}-${Date.now()}.${ext}`;
-            const { error } = await supabase.storage.from('task-photos').upload(path, file, { upsert: true });
-            if (error) {
-                // If bucket doesn't exist, store as data URL fallback
-                console.warn('Storage upload failed, using data URL:', error.message);
-                const reader = new FileReader();
-                reader.onload = async () => {
-                    const dataUrl = reader.result as string;
-                    await updateSubTaskPhoto(photoTargetId!, dataUrl);
-                    setSubtasks(prev => prev.map(s => s.id === photoTargetId ? { ...s, photoUrl: dataUrl } : s));
-                    setUploadingPhotoId(null);
-                };
-                reader.readAsDataURL(file);
-                return;
-            }
-            const { data: urlData } = supabase.storage.from('task-photos').getPublicUrl(path);
-            const url = urlData.publicUrl;
-            await updateSubTaskPhoto(photoTargetId, url);
-            setSubtasks(prev => prev.map(s => s.id === photoTargetId ? { ...s, photoUrl: url } : s));
+            const reader = new FileReader();
+            reader.onload = async () => {
+                const dataUrl = reader.result as string;
+                await updateSubTaskPhoto(photoTargetId!, dataUrl);
+                setSubtasks(prev => prev.map(s => s.id === photoTargetId ? { ...s, photoUrl: dataUrl } : s));
+                setUploadingPhotoId(null);
+            };
+            reader.readAsDataURL(file);
         } catch (err) {
             console.error('Photo upload error:', err);
+            setUploadingPhotoId(null);
         }
-        setUploadingPhotoId(null);
         setPhotoTargetId(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
     };

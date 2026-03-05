@@ -10,10 +10,10 @@
   --color-text: #0f172a;
   --color-text-2: #475569;
   --color-text-3: #94a3b8;
-  --color-success: #10b981;
-  --color-danger: #ef4444;
-  --color-warning: #f59e0b;
-  --color-info: #3b82f6;
+  --color-success: #0d9488;
+  --color-danger: #dc2626;
+  --color-warning: #d97706;
+  --color-info: #2563eb;
 
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -152,15 +152,15 @@ a { color: inherit; text-decoration: none; }
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.badge-critical { background: #fee2e2; color: #dc2626; }
-.badge-high     { background: #ffedd5; color: #c2410c; }
-.badge-medium   { background: #fef9c3; color: #a16207; }
-.badge-low      { background: #dcfce7; color: #166534; }
-.badge-pending   { background: #f1f5f9; color: #64748b; }
-.badge-progress { background: #dbeafe; color: #1d4ed8; }
-.badge-blocked  { background: #fee2e2; color: #dc2626; }
-.badge-completed { background: #dcfce7; color: #166534; }
-.badge-active   { background: #dcfce7; color: #166534; }
+.badge-critical { background: #fef2f2; color: #b91c1c; }
+.badge-high     { background: #fff7ed; color: #c2410c; }
+.badge-medium   { background: #fefce8; color: #92400e; }
+.badge-low      { background: #f0f9ff; color: #0c4a6e; }
+.badge-pending  { background: #f1f5f9; color: #64748b; }
+.badge-progress { background: #eff6ff; color: #1d4ed8; }
+.badge-blocked  { background: #fef2f2; color: #b91c1c; }
+.badge-completed { background: #f0fdfa; color: #0f766e; }
+.badge-active   { background: #f0fdfa; color: #0f766e; }
 
 /* ─── Auth Screens ───────────────────────────────────────────────────────── */
 .auth-card {
@@ -413,7 +413,7 @@ a { color: inherit; text-decoration: none; }
   border: 1px solid var(--color-border);
 }
 .stat-label { font-size: 0.75rem; font-weight: 700; color: var(--color-text-3); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 8px; }
-.stat-value { font-size: 2rem; font-weight: 800; color: var(--color-text); letter-spacing: -0.03em; line-height: 1; }
+.stat-value { font-size: 2rem; font-weight: 800; color: var(--color-text); letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
 .stat-value.brand { color: var(--color-brand); }
 .stat-value.success { color: var(--color-success); }
 .stat-value.danger { color: var(--color-danger); }
@@ -441,7 +441,7 @@ a { color: inherit; text-decoration: none; }
 .task-card.priority-critical::before { background: var(--color-danger); }
 .task-card.priority-high::before    { background: var(--color-brand); }
 .task-card.priority-medium::before  { background: var(--color-warning); }
-.task-card.priority-low::before     { background: var(--color-success); }
+.task-card.priority-low::before     { background: var(--color-info); }
 .task-card.done::before             { background: var(--color-border); }
 .task-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
 .task-card.done { opacity: 0.6; }
@@ -462,7 +462,7 @@ a { color: inherit; text-decoration: none; }
 }
 .icon-btn:hover { background: var(--color-surface-2); color: var(--color-text); }
 .icon-btn.danger:hover { background: #fee2e2; color: var(--color-danger); }
-.icon-btn.success:hover { background: #dcfce7; color: var(--color-success); }
+.icon-btn.success:hover { background: #f0fdfa; color: var(--color-success); }
 
 /* ─── Task List ──────────────────────────────────────────────────────────── */
 .task-list { display: flex; flex-direction: column; gap: 12px; }
@@ -654,7 +654,7 @@ a { color: inherit; text-decoration: none; }
 .worker-info { flex: 1; min-width: 0; }
 .worker-name { font-weight: 700; color: var(--color-text); font-size: 0.9rem; margin-bottom: 2px; }
 .worker-job { font-size: 0.78rem; color: var(--color-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.worker-time { font-size: 0.9rem; font-weight: 700; color: var(--color-success); font-variant-numeric: tabular-nums; }
+.worker-time { font-size: 0.9rem; font-weight: 700; color: var(--color-text); font-variant-numeric: tabular-nums; }
 
 /* ─── Section Card ───────────────────────────────────────────────────────── */
 .section-card {
@@ -808,8 +808,8 @@ a { color: inherit; text-decoration: none; }
 }
 .subtask-item.employee.completed {
   opacity: 1;
-  background: #f0fdf4;
-  border-color: #bbf7d0;
+  background: #f0fdfa;
+  border-color: #99f6e4;
 }
 .subtask-main-row {
   display: flex;
@@ -862,14 +862,14 @@ a { color: inherit; text-decoration: none; }
 .subtask-notes-display {
   padding: 6px 10px;
   margin: 4px 0 0 30px;
-  background: #fffbeb;
+  background: var(--color-surface-2);
   border-radius: var(--radius-sm);
   cursor: pointer;
   display: flex;
   gap: 6px;
   align-items: baseline;
 }
-.subtask-notes-display:hover { background: #fef3c7; }
+.subtask-notes-display:hover { background: var(--color-bg); }
 
 /* Note editing */
 .subtask-note-edit {
@@ -877,6 +877,66 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+/* ─── Toolbar ────────────────────────────────────────────────────────────── */
+.toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ─── User Badge ──────────────────────────────────────────────────────────── */
+.user-badge {
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.user-badge-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #fff;
+  flex-shrink: 0;
+}
+.user-badge-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.85);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.user-badge-role {
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.3);
+}
+
+/* ─── Form Group ──────────────────────────────────────────────────────────── */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ─── Error Banner ────────────────────────────────────────────────────────── */
+.error-banner {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
 }
 
 /* ─── Mobile responsive ──────────────────────────────────────────────────── */

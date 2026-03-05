@@ -46,9 +46,9 @@ export default function AdminTimePage({ user }: Props) {
 
     return (
         <div>
-            <div style={{ marginBottom: 24 }}>
-                <h1 style={{ fontSize: '1.4rem', fontWeight: 800, letterSpacing: '-0.02em', margin: '0 0 4px' }}>Time Tracking</h1>
-                <p style={{ margin: 0, color: 'var(--color-text-2)', fontSize: '0.88rem' }}>All time entries and hours worked</p>
+            <div className="admin-header">
+                <h1>Time Tracking</h1>
+                <p>All time entries and hours worked</p>
             </div>
 
             {/* Week summary */}
@@ -65,8 +65,8 @@ export default function AdminTimePage({ user }: Props) {
                             {Object.entries(summary).sort(([a], [b]) => a.localeCompare(b)).map(([name, s]) => (
                                 <tr key={name}>
                                     <td style={{ fontWeight: 600, color: 'var(--color-text)' }}>{name}</td>
-                                    <td style={{ fontWeight: 700 }}>{s.hours.toFixed(1)}h</td>
-                                    <td style={{ fontWeight: 700, color: 'var(--color-success)' }}>${s.pay.toFixed(2)}</td>
+                                    <td style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{s.hours.toFixed(1)}h</td>
+                                    <td style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>${s.pay.toFixed(2)}</td>
                                     <td style={{ color: 'var(--color-text-3)' }}>{s.count}</td>
                                 </tr>
                             ))}
@@ -76,7 +76,7 @@ export default function AdminTimePage({ user }: Props) {
             )}
 
             {/* Filter & entries */}
-            <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
+            <div className="toolbar">
                 <select className="input" style={{ width: 200 }} value={filterName} onChange={e => setFilterName(e.target.value)}>
                     <option value="all">All Employees</option>
                     {names.map(n => <option key={n} value={n}>{n}</option>)}
@@ -101,11 +101,11 @@ export default function AdminTimePage({ user }: Props) {
                                 <tr key={e.id}>
                                     <td style={{ fontWeight: 600, color: 'var(--color-text)' }}>{e.userName}</td>
                                     <td>{fmtDate(e.startTime)}</td>
-                                    <td>{e.jobName || '—'}</td>
+                                    <td>{e.jobName || '\u2014'}</td>
                                     <td>{fmtTime(e.startTime)}</td>
-                                    <td>{e.endTime ? fmtTime(e.endTime) : <span style={{ color: 'var(--color-success)' }}>Now</span>}</td>
-                                    <td style={{ fontWeight: 600 }}>{fmtDuration(dur)}</td>
-                                    <td style={{ color: 'var(--color-success)', fontWeight: 600 }}>{e.totalPay != null ? `$${e.totalPay.toFixed(2)}` : '—'}</td>
+                                    <td>{e.endTime ? fmtTime(e.endTime) : <span className="badge badge-active">Now</span>}</td>
+                                    <td style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmtDuration(dur)}</td>
+                                    <td style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{e.totalPay != null ? `$${e.totalPay.toFixed(2)}` : '\u2014'}</td>
                                     <td>
                                         {e.status === 'active'
                                             ? <span className="badge badge-active">Clocked In</span>

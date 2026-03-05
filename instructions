@@ -3,7 +3,7 @@
 This application is a Workflow Task Manager designed for organizations to track employee hours, jobs, and tasks. It handles two primary types of users: **Admins** (Managers/Owners) and **Employees**.
 
 ## 1. Authentication & Onboarding Flow
-The application uses Supabase for authentication and profile management, with a custom organization structure.
+The application uses better-auth for authentication and Neon Postgres for data storage, with a custom organization structure.
 
 *   **Registration ([RegisterPage.tsx](cci:7://file:///C:/Users/russe/pwa-starter/src/pages/RegisterPage.tsx:0:0-0:0))**:
     *   New users can sign up and create a new Organization.
@@ -29,6 +29,6 @@ When an Employee logs in, the interface is streamlined for quick actions on the 
 
 ## 4. Tech Stack & Integration Notes
 *   **Frontend**: React + TypeScript + Vite. Configured as a Progressive Web App (PWA) via `vite-plugin-pwa` so it can be installed on employee phones.
-*   **Backend (Auth & Realtime)**: Supabase is used primarily for Authentication (`profiles`, `organizations`), taking advantage of Row Level Security (RLS) to ensure users only see data for their specific `org_id`.
-*   **Database (Neon)**: We recently integrated Neon Postgres (`@neondatabase/serverless`) to handle advanced queries, branching, or specific database needs using the `sql` client configured in [src/lib/neon.ts](cci:7://file:///c:/Users/russe/pwa-starter/src/lib/neon.ts:0:0-0:0).
-*   **Edge Functions**: Certain privileged actions (like an admin creating an employee user account without logging themselves out) are delegated to Supabase Edge Functions (e.g., `create-user`, `delete-user`).
+*   **Backend (Auth)**: better-auth handles authentication (email/password and PIN-based login for employees).
+*   **Database (Neon)**: Neon Postgres (`@neondatabase/serverless`) stores all data — profiles, organizations, jobs, tasks, and time entries — using the `sql` client configured in `src/lib/neon.ts`.
+*   **API Routes**: Privileged actions (like creating/deleting employee accounts) are handled via better-auth server-side API routes.
