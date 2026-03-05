@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getCurrentUser, signOut, reloadProfile } from './lib/auth';
+import { getSession, signOut } from './lib/auth';
 import { UserProfile } from './types';
 import LoginPage from './pages/LoginPage';
 import AdminLoginPage from './pages/AdminLoginPage';
@@ -14,18 +14,12 @@ export default function App() {
     const [screen, setScreen] = useState<Screen>('login');
     const [loading, setLoading] = useState(true);
 
-    // On mount — restore session from localStorage
+    // On mount — restore session via Better Auth + profile cache
     useEffect(() => {
-        const restoreSession = async () => {
-            const stored = getCurrentUser();
-            if (stored) {
-                // Refresh profile from DB to ensure it's still valid
-                const refreshed = await reloadProfile(stored.id);
-                if (refreshed) setUser(refreshed);
-            }
+        getSession().then(profile => {
+            if (profile) setUser(profile);
             setLoading(false);
-        };
-        restoreSession();
+        });
     }, []);
 
     const handleLogin = (profile: UserProfile) => {
@@ -33,8 +27,8 @@ export default function App() {
         setScreen('login');
     };
 
-    const handleLogout = () => {
-        signOut();
+    const handleLogout = async () => {
+        await signOut();
         setUser(null);
         setScreen('login');
     };

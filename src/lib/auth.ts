@@ -1,53 +1,46 @@
+import { authClient } from './auth-client';
 import { sql } from './neon';
 import { UserProfile } from '../types';
 
-// ─── Password Hashing (PBKDF2 via Web Crypto API) ─────────────────────────
+const NEON_AUTH_URL = import.meta.env.VITE_NEON_AUTH_URL as string;
 
-async function hashPassword(password: string): Promise<string> {
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const enc = new TextEncoder();
-    const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
-    const bits = await crypto.subtle.deriveBits(
-        { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
-        key,
-        256
-    );
-    const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
-    const hashHex = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
-    return `${saltHex}:${hashHex}`;
+// ─── Profile Cache ─────────────────────────────────────────────────────────
+
+const PROFILE_KEY = 'wf_profile';
+
+function cacheProfile(profile: UserProfile) {
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
 }
 
-async function verifyPassword(password: string, stored: string): Promise<boolean> {
-    const [saltHex, hashHex] = stored.split(':');
-    if (!saltHex || !hashHex) return false;
-    const salt = new Uint8Array(saltHex.match(/.{2}/g)!.map(b => parseInt(b, 16)));
-    const enc = new TextEncoder();
-    const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
-    const bits = await crypto.subtle.deriveBits(
-        { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
-        key,
-        256
-    );
-    const computed = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
-    return computed === hashHex;
-}
-
-// ─── Session Management ────────────────────────────────────────────────────
-
-const SESSION_KEY = 'wf_session';
-
-function storeSession(profile: UserProfile) {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(profile));
-}
-
-function clearSession() {
-    localStorage.removeItem(SESSION_KEY);
-}
-
-function getStoredSession(): UserProfile | null {
-    const raw = localStorage.getItem(SESSION_KEY);
+function getCachedProfile(): UserProfile | null {
+    const raw = localStorage.getItem(PROFILE_KEY);
     if (!raw) return null;
     try { return JSON.parse(raw); } catch { return null; }
+}
+
+function clearCachedProfile() {
+    localStorage.removeItem(PROFILE_KEY);
+}
+
+// ─── Helper: Load profile from DB ──────────────────────────────────────────
+
+async function loadProfile(userId: string): Promise<UserProfile | null> {
+    const rows = await sql`
+        SELECT p.user_id, p.name, p.rate, p.role, p.org_id, u.email
+        FROM public.profiles p
+        JOIN neon_auth."user" u ON u.id = p.user_id
+        WHERE p.user_id = ${userId}
+    `;
+    if (rows.length === 0) return null;
+    const r = rows[0];
+    return {
+        id: r.user_id,
+        name: r.name,
+        rate: Number(r.rate) || 0,
+        role: r.role as 'admin' | 'user',
+        orgId: r.org_id,
+        email: r.email,
+    };
 }
 
 // ─── Auth Functions ────────────────────────────────────────────────────────
@@ -62,22 +55,17 @@ export async function signUpAdmin(opts: {
 }): Promise<UserProfile> {
     const { name, email, password, companyName, slug } = opts;
 
-    // 1. Create auth user in neon_auth
-    const hashedPwd = await hashPassword(password);
-    const userRows = await sql`
-        INSERT INTO neon_auth."user" (name, email, "emailVerified", role, "createdAt", "updatedAt")
-        VALUES (${name}, ${email}, false, 'user', now(), now())
-        RETURNING id
-    `;
-    const userId = userRows[0].id;
+    // 1. Sign up via Better Auth (server-side scrypt hashing + session)
+    const { data, error } = await authClient.signUp.email({
+        email,
+        password,
+        name,
+    });
+    if (error || !data?.user) throw new Error(error?.message || 'Registration failed.');
 
-    // 2. Create credential account
-    await sql`
-        INSERT INTO neon_auth."account" ("accountId", "providerId", "userId", password, "createdAt", "updatedAt")
-        VALUES (${userId}, 'credential', ${userId}, ${hashedPwd}, now(), now())
-    `;
+    const userId = data.user.id;
 
-    // 3. Create organization
+    // 2. Create organization
     const orgRows = await sql`
         INSERT INTO public.organizations (name, slug)
         VALUES (${companyName}, ${slug})
@@ -85,103 +73,50 @@ export async function signUpAdmin(opts: {
     `;
     const orgId = orgRows[0].id;
 
-    // 4. Create profile
+    // 3. Create profile
     await sql`
         INSERT INTO public.profiles (user_id, name, rate, role, org_id)
         VALUES (${userId}, ${name}, 0, 'admin', ${orgId})
     `;
 
-    const profile: UserProfile = { id: userId, name, rate: 0, role: 'admin', orgId };
-    storeSession(profile);
+    const profile: UserProfile = { id: userId, name, rate: 0, role: 'admin', orgId, email };
+    cacheProfile(profile);
     return profile;
 }
 
 /** Admin sign in with email + password */
 export async function signInAdmin(email: string, password: string): Promise<UserProfile> {
-    // Find user by email
-    const users = await sql`
-        SELECT u.id, u.name, u.email
-        FROM neon_auth."user" u
-        WHERE u.email = ${email}
-    `;
-    if (users.length === 0) throw new Error('Invalid email or password.');
+    const { data, error } = await authClient.signIn.email({
+        email,
+        password,
+    });
+    if (error || !data?.user) throw new Error(error?.message || 'Invalid email or password.');
 
-    const user = users[0];
+    const userId = data.user.id;
+    const profile = await loadProfile(userId);
+    if (!profile) throw new Error('Profile not found.');
+    if (profile.role !== 'admin') throw new Error('This account does not have manager access.');
 
-    // Get credential account
-    const accounts = await sql`
-        SELECT password FROM neon_auth."account"
-        WHERE "userId" = ${user.id} AND "providerId" = 'credential'
-    `;
-    if (accounts.length === 0 || !accounts[0].password) throw new Error('Invalid email or password.');
-
-    const valid = await verifyPassword(password, accounts[0].password);
-    if (!valid) throw new Error('Invalid email or password.');
-
-    // Get profile
-    const profiles = await sql`
-        SELECT user_id, name, rate, role, org_id
-        FROM public.profiles
-        WHERE user_id = ${user.id}
-    `;
-    if (profiles.length === 0) throw new Error('Profile not found.');
-    const p = profiles[0];
-    if (p.role !== 'admin') throw new Error('This account does not have manager access.');
-
-    const profile: UserProfile = {
-        id: p.user_id,
-        name: p.name,
-        rate: Number(p.rate) || 0,
-        role: 'admin',
-        orgId: p.org_id,
-    };
-    storeSession(profile);
+    cacheProfile(profile);
     return profile;
 }
 
 /** Employee sign in with name + company slug + PIN */
 export async function signInEmployee(name: string, slug: string, pin: string): Promise<UserProfile> {
-    // Build synthetic email
     const cleanName = name.trim().toLowerCase().replace(/\s+/g, '.');
-    const email = `${cleanName}@${slug.trim().toLowerCase()}.taskpoint.local`;
+    const syntheticEmail = `${cleanName}@${slug.trim().toLowerCase()}.taskpoint.local`;
 
-    // Find user by email
-    const users = await sql`
-        SELECT u.id, u.name
-        FROM neon_auth."user" u
-        WHERE u.email = ${email}
-    `;
-    if (users.length === 0) throw new Error('Invalid name, company code, or PIN.');
+    const { data, error } = await authClient.signIn.email({
+        email: syntheticEmail,
+        password: pin,
+    });
+    if (error || !data?.user) throw new Error('Invalid name, company code, or PIN.');
 
-    const user = users[0];
+    const userId = data.user.id;
+    const profile = await loadProfile(userId);
+    if (!profile) throw new Error('Profile not found. Contact your manager.');
 
-    // Get credential account
-    const accounts = await sql`
-        SELECT password FROM neon_auth."account"
-        WHERE "userId" = ${user.id} AND "providerId" = 'credential'
-    `;
-    if (accounts.length === 0 || !accounts[0].password) throw new Error('Invalid name, company code, or PIN.');
-
-    const valid = await verifyPassword(pin, accounts[0].password);
-    if (!valid) throw new Error('Invalid name, company code, or PIN.');
-
-    // Get profile
-    const profiles = await sql`
-        SELECT user_id, name, rate, role, org_id
-        FROM public.profiles
-        WHERE user_id = ${user.id}
-    `;
-    if (profiles.length === 0) throw new Error('Profile not found. Contact your manager.');
-    const p = profiles[0];
-
-    const profile: UserProfile = {
-        id: p.user_id,
-        name: p.name,
-        rate: Number(p.rate) || 0,
-        role: p.role as 'admin' | 'user',
-        orgId: p.org_id,
-    };
-    storeSession(profile);
+    cacheProfile(profile);
     return profile;
 }
 
@@ -195,22 +130,28 @@ export async function createEmployee(opts: {
 }): Promise<void> {
     const { name, pin, rate, orgId, orgSlug } = opts;
     const cleanName = name.trim().toLowerCase().replace(/\s+/g, '.');
-    const email = `${cleanName}@${orgSlug}.taskpoint.local`;
-    const hashedPwd = await hashPassword(pin);
+    const syntheticEmail = `${cleanName}@${orgSlug}.taskpoint.local`;
 
-    // Create auth user
-    const userRows = await sql`
-        INSERT INTO neon_auth."user" (name, email, "emailVerified", role, "createdAt", "updatedAt")
-        VALUES (${name}, ${email}, false, 'user', now(), now())
-        RETURNING id
-    `;
-    const userId = userRows[0].id;
+    // Create auth user via Better Auth sign-up endpoint (raw fetch, no cookies)
+    // This avoids disrupting the admin's active session
+    const res = await fetch(`${NEON_AUTH_URL}/sign-up/email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            email: syntheticEmail,
+            password: pin,
+            name,
+        }),
+    });
 
-    // Create credential account
-    await sql`
-        INSERT INTO neon_auth."account" ("accountId", "providerId", "userId", password, "createdAt", "updatedAt")
-        VALUES (${userId}, 'credential', ${userId}, ${hashedPwd}, now(), now())
-    `;
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Failed to create employee' }));
+        throw new Error(err.message || 'Failed to create employee');
+    }
+
+    const data = await res.json();
+    const userId = data.user?.id;
+    if (!userId) throw new Error('Failed to create employee user');
 
     // Create profile
     await sql`
@@ -221,40 +162,53 @@ export async function createEmployee(opts: {
 
 /** Delete an employee user (called by admin) */
 export async function deleteEmployee(userId: string): Promise<void> {
-    // Delete profile first (FK constraint)
     await sql`DELETE FROM public.profiles WHERE user_id = ${userId}`;
-    // Delete account
+    await sql`DELETE FROM neon_auth."session" WHERE "userId" = ${userId}`;
     await sql`DELETE FROM neon_auth."account" WHERE "userId" = ${userId}`;
-    // Delete user
     await sql`DELETE FROM neon_auth."user" WHERE id = ${userId}`;
 }
 
-/** Sign out */
-export function signOut(): void {
-    clearSession();
+/** Sign out via Better Auth */
+export async function signOut(): Promise<void> {
+    try {
+        await authClient.signOut();
+    } catch {
+        // Ignore — clear local state anyway
+    }
+    clearCachedProfile();
 }
 
-/** Get current user from stored session */
+/** Restore session from Better Auth + load profile */
+export async function getSession(): Promise<UserProfile | null> {
+    try {
+        const { data } = await authClient.getSession();
+        if (!data?.user?.id) {
+            clearCachedProfile();
+            return null;
+        }
+
+        // Use cached profile if user ID matches
+        const cached = getCachedProfile();
+        if (cached && cached.id === data.user.id) return cached;
+
+        // Otherwise load from DB
+        const profile = await loadProfile(data.user.id);
+        if (profile) cacheProfile(profile);
+        return profile;
+    } catch {
+        clearCachedProfile();
+        return null;
+    }
+}
+
+/** Get cached profile (synchronous, for fast initial render) */
 export function getCurrentUser(): UserProfile | null {
-    return getStoredSession();
+    return getCachedProfile();
 }
 
-/** Reload profile from DB (e.g. after session restore) */
+/** Reload profile from DB */
 export async function reloadProfile(userId: string): Promise<UserProfile | null> {
-    const profiles = await sql`
-        SELECT user_id, name, rate, role, org_id
-        FROM public.profiles
-        WHERE user_id = ${userId}
-    `;
-    if (profiles.length === 0) return null;
-    const p = profiles[0];
-    const profile: UserProfile = {
-        id: p.user_id,
-        name: p.name,
-        rate: Number(p.rate) || 0,
-        role: p.role as 'admin' | 'user',
-        orgId: p.org_id,
-    };
-    storeSession(profile);
+    const profile = await loadProfile(userId);
+    if (profile) cacheProfile(profile);
     return profile;
 }

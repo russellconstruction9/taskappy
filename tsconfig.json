@@ -22,5 +22,13 @@
   },
   "include": [
     "src"
+  ],
+  "exclude": [
+    "src/app-index.ts",
+    "src/router.ts",
+    "src/components/header.ts",
+    "src/pages/app-home.ts",
+    "src/pages/app-about",
+    "src/styles/shared-styles.ts"
   ]
 }

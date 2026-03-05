@@ -30,14 +30,14 @@ export async function getProfilesByOrg(orgId: string) {
     }));
 }
 
-export async function getEmployeesByOrg(orgId: string) {
+export async function getEmployeesByOrg(orgId: string): Promise<{ id: string; name: string }[]> {
     const rows = await sql`
         SELECT p.user_id as id, p.name
         FROM public.profiles p
         WHERE p.org_id = ${orgId} AND p.role = 'user'
         ORDER BY p.name
     `;
-    return rows;
+    return rows as unknown as { id: string; name: string }[];
 }
 
 // ─── Jobs ──────────────────────────────────────────────────────────────────
