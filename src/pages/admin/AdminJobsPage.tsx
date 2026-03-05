@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { getJobsByOrg, createJob, updateJob, toggleJobActive, deleteJob } from '../../lib/db';
 import { UserProfile, Job } from '../../types';
 
 interface Props { user: UserProfile; }
@@ -16,8 +16,8 @@ export default function AdminJobsPage({ user }: Props) {
 
     const fetchJobs = async () => {
         if (!user.orgId) return;
-        const { data } = await supabase.from('jobs').select('*').eq('org_id', user.orgId).order('name');
-        if (data) setJobs(data.map(r => ({ id: r.id, name: r.name, address: r.address ?? '', active: r.active })));
+        const data = await getJobsByOrg(user.orgId);
+        setJobs(data);
         setLoading(false);
     };
 
@@ -27,11 +27,10 @@ export default function AdminJobsPage({ user }: Props) {
     const handleSave = async () => {
         if (!form.name.trim()) return;
         setSaving(true);
-        const payload = { name: form.name.trim(), address: form.address.trim(), org_id: user.orgId, active: true };
         if (editing) {
-            await supabase.from('jobs').update(payload).eq('id', editing.id);
+            await updateJob(editing.id, { name: form.name.trim(), address: form.address.trim() });
         } else {
-            await supabase.from('jobs').insert(payload);
+            await createJob({ name: form.name.trim(), address: form.address.trim(), orgId: user.orgId });
         }
         setShowModal(false);
         fetchJobs();
@@ -39,13 +38,13 @@ export default function AdminJobsPage({ user }: Props) {
     };
 
     const toggleActive = async (job: Job) => {
-        await supabase.from('jobs').update({ active: !job.active }).eq('id', job.id);
+        await toggleJobActive(job.id, !job.active);
         setJobs(prev => prev.map(j => j.id === job.id ? { ...j, active: !j.active } : j));
     };
 
     const handleDelete = async (id: string) => {
         if (!confirm('Delete this job site?')) return;
-        await supabase.from('jobs').delete().eq('id', id);
+        await deleteJob(id);
         setJobs(prev => prev.filter(j => j.id !== id));
     };
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { getTasksByEmployee } from '../../lib/db';
 import { UserProfile, Task } from '../../types';
 
 interface Props { user: UserProfile; }
@@ -16,14 +16,7 @@ export default function EmployeeSchedulePage({ user }: Props) {
 
     useEffect(() => {
         if (!user.orgId) return;
-        supabase.from('tasks').select('*').eq('org_id', user.orgId).eq('assigned_to', user.name)
-            .then(({ data }) => {
-                if (data) setTasks(data.map(r => ({
-                    id: r.id, title: r.title, description: r.description ?? '', location: r.location ?? '',
-                    assignedTo: r.assigned_to ?? '', dueDate: r.due_date ?? '', priority: r.priority ?? 'Medium',
-                    status: r.status ?? 'Pending', createdAt: r.created_at ?? 0, jobName: r.job_name,
-                })));
-            });
+        getTasksByEmployee(user.orgId, user.name).then(setTasks);
     }, [user.orgId]);
 
     // Build calendar grid

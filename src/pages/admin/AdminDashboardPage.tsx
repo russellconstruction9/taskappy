@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { supabase } from '../../lib/supabase';
+import { getTasksByOrg, getActiveTimeEntriesByOrg } from '../../lib/db';
 import { UserProfile, Task, TimeEntry, AdminView } from '../../types';
 
 interface Props {
@@ -22,20 +22,12 @@ export default function AdminDashboardPage({ user, onNavigate }: Props) {
 
     const fetchData = useCallback(async () => {
         if (!user.orgId) return;
-        const [{ data: taskData }, { data: timeData }] = await Promise.all([
-            supabase.from('tasks').select('*').eq('org_id', user.orgId),
-            supabase.from('time_entries').select('*').eq('org_id', user.orgId).eq('status', 'active'),
+        const [taskData, timeData] = await Promise.all([
+            getTasksByOrg(user.orgId),
+            getActiveTimeEntriesByOrg(user.orgId),
         ]);
-        if (taskData) setTasks(taskData.map(r => ({
-            id: r.id, title: r.title, description: r.description ?? '', location: r.location ?? '',
-            assignedTo: r.assigned_to ?? '', dueDate: r.due_date ?? '', priority: r.priority ?? 'Medium',
-            status: r.status ?? 'Pending', createdAt: r.created_at ?? 0, jobName: r.job_name,
-        })));
-        if (timeData) setActiveEntries(timeData.map(r => ({
-            id: r.id, userId: r.user_id, userName: r.user_name,
-            startTime: r.start_time, endTime: r.end_time, status: r.status,
-            jobName: r.job_name, notes: r.notes, orgId: r.org_id,
-        })));
+        setTasks(taskData);
+        setActiveEntries(timeData);
         setLoading(false);
     }, [user.orgId]);
 
@@ -43,13 +35,9 @@ export default function AdminDashboardPage({ user, onNavigate }: Props) {
         fetchData();
         // tick
         const tick = setInterval(() => setNow(Date.now()), 10000);
-        // realtime
-        if (!user.orgId) return;
-        const ch = supabase.channel(`admin-dash-${user.orgId}`)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'time_entries', filter: `org_id=eq.${user.orgId}` }, fetchData)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `org_id=eq.${user.orgId}` }, fetchData)
-            .subscribe();
-        return () => { clearInterval(tick); supabase.removeChannel(ch); };
+        // Poll for updates instead of realtime
+        const poll = setInterval(fetchData, 30000);
+        return () => { clearInterval(tick); clearInterval(poll); };
     }, [fetchData]);
 
     const today = new Date().toISOString().split('T')[0];

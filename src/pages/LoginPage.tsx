@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { signInEmployee } from '../lib/auth';
 import { UserProfile } from '../types';
 
 interface Props {
@@ -24,27 +24,8 @@ export default function LoginPage({ onLogin, onAdminAccess, onRegister }: Props)
         }
         setLoading(true);
         try {
-            // Build synthetic email: name@slug.taskpoint.local
-            const cleanName = name.trim().toLowerCase().replace(/\s+/g, '.');
-            const email = `${cleanName}@${slug.trim().toLowerCase()}.taskpoint.local`;
-            const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password: pin });
-            if (authError || !data.user) throw new Error('Invalid name, company code, or PIN.');
-
-            const { data: profile, error: profileError } = await supabase
-                .from('profiles')
-                .select('id, name, rate, role, org_id')
-                .eq('id', data.user.id)
-                .single();
-
-            if (profileError || !profile) throw new Error('Profile not found. Contact your manager.');
-
-            onLogin({
-                id: profile.id,
-                name: profile.name,
-                rate: profile.rate ?? 0,
-                role: profile.role,
-                orgId: profile.org_id,
-            });
+            const profile = await signInEmployee(name, slug, pin);
+            onLogin(profile);
         } catch (err: any) {
             setError(err.message || 'Login failed.');
         } finally {

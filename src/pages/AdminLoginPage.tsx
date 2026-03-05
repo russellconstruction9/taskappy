@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { signInAdmin } from '../lib/auth';
 import { UserProfile } from '../types';
 
 interface Props {
@@ -20,22 +20,8 @@ export default function AdminLoginPage({ onLogin, onBack, onRegister }: Props) {
         if (!email.trim() || !password.trim()) { setError('Please fill in all fields.'); return; }
         setLoading(true);
         try {
-            const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
-            if (authError || !data.user) throw new Error('Invalid email or password.');
-
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('id, name, rate, role, org_id')
-                .eq('id', data.user.id)
-                .single();
-
-            if (!profile) throw new Error('Profile not found.');
-            if (profile.role !== 'admin') {
-                await supabase.auth.signOut();
-                throw new Error('This account does not have manager access.');
-            }
-
-            onLogin({ id: profile.id, name: profile.name, rate: profile.rate ?? 0, role: 'admin', orgId: profile.org_id });
+            const profile = await signInAdmin(email.trim(), password);
+            onLogin(profile);
         } catch (err: any) {
             setError(err.message || 'Login failed.');
         } finally {

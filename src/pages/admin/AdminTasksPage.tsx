@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { getTasksByOrg, getEmployeesByOrg, getActiveJobsByOrg, createTask, updateTask, deleteTask as removeTask } from '../../lib/db';
 import { UserProfile, Task, Job } from '../../types';
 
 interface Props { user: UserProfile; }
@@ -28,14 +28,14 @@ export default function AdminTasksPage({ user }: Props) {
 
     const fetchAll = async () => {
         if (!user.orgId) return;
-        const [{ data: t }, { data: e }, { data: j }] = await Promise.all([
-            supabase.from('tasks').select('*').eq('org_id', user.orgId).order('created_at', { ascending: false }),
-            supabase.from('profiles').select('id, name').eq('org_id', user.orgId).eq('role', 'user'),
-            supabase.from('jobs').select('*').eq('org_id', user.orgId).eq('active', true),
+        const [t, e, j] = await Promise.all([
+            getTasksByOrg(user.orgId),
+            getEmployeesByOrg(user.orgId),
+            getActiveJobsByOrg(user.orgId),
         ]);
-        if (t) setTasks(t.map(r => ({ id: r.id, title: r.title, description: r.description ?? '', location: r.location ?? '', assignedTo: r.assigned_to ?? '', dueDate: r.due_date ?? '', priority: r.priority ?? 'Medium', status: r.status ?? 'Pending', createdAt: r.created_at ?? 0, jobName: r.job_name, orgId: r.org_id })));
-        if (e) setEmployees(e);
-        if (j) setJobs(j.map(r => ({ id: r.id, name: r.name, address: r.address ?? '', active: r.active })));
+        setTasks(t);
+        setEmployees(e);
+        setJobs(j);
         setLoading(false);
     };
 
@@ -45,11 +45,11 @@ export default function AdminTasksPage({ user }: Props) {
     const handleSave = async () => {
         if (!form.title.trim()) return;
         setSaving(true);
-        const payload = { title: form.title, description: form.description, location: form.location, assigned_to: form.assignedTo, due_date: form.dueDate || null, priority: form.priority, status: form.status, job_name: form.jobName || null, org_id: user.orgId };
+        const payload = { title: form.title, description: form.description, location: form.location, assignedTo: form.assignedTo, dueDate: form.dueDate || null, priority: form.priority, status: form.status, jobName: form.jobName || null, orgId: user.orgId };
         if (editing) {
-            await supabase.from('tasks').update(payload).eq('id', editing.id);
+            await updateTask(editing.id, payload);
         } else {
-            await supabase.from('tasks').insert({ ...payload, created_at: Date.now() });
+            await createTask(payload);
         }
         setShowModal(false);
         fetchAll();
@@ -58,7 +58,7 @@ export default function AdminTasksPage({ user }: Props) {
 
     const handleDelete = async (id: string) => {
         if (!confirm('Delete this task?')) return;
-        await supabase.from('tasks').delete().eq('id', id);
+        await removeTask(id);
         setTasks(prev => prev.filter(t => t.id !== id));
     };
 

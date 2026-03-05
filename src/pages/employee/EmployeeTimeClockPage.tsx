@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { getTimeEntriesByUser, getActiveJobsByOrg, clockIn, clockOut } from '../../lib/db';
 import { UserProfile, TimeEntry, Job } from '../../types';
 
 interface Props { user: UserProfile; }
@@ -44,50 +44,35 @@ export default function EmployeeTimeClockPage({ user }: Props) {
     }, [now, activeEntry]);
 
     const fetchData = async () => {
-        const [{ data: entriesData }, { data: jobsData }] = await Promise.all([
-            supabase.from('time_entries').select('*').eq('user_id', user.id).order('start_time', { ascending: false }).limit(30),
-            supabase.from('jobs').select('*').eq('org_id', user.orgId).eq('active', true),
+        const [entriesData, jobsData] = await Promise.all([
+            getTimeEntriesByUser(user.id, 30),
+            getActiveJobsByOrg(user.orgId),
         ]);
-        if (entriesData) {
-            const mapped: TimeEntry[] = entriesData.map(r => ({
-                id: r.id, userId: r.user_id, userName: r.user_name,
-                startTime: r.start_time, endTime: r.end_time, status: r.status,
-                jobName: r.job_name, notes: r.notes, totalPay: r.total_pay, orgId: r.org_id,
-            }));
-            setEntries(mapped);
-            const active = mapped.find(e => e.status === 'active');
-            if (active) { setActiveEntry(active); setSelectedJob(active.jobName ?? ''); }
-        }
-        if (jobsData) setJobs(jobsData.map(r => ({ id: r.id, name: r.name, address: r.address ?? '', active: r.active })));
+        setEntries(entriesData);
+        const active = entriesData.find(e => e.status === 'active');
+        if (active) { setActiveEntry(active); setSelectedJob(active.jobName ?? ''); }
+        setJobs(jobsData);
         setLoading(false);
     };
 
-    const clockIn = async () => {
+    const handleClockIn = async () => {
         if (!selectedJob) { alert('Please select a job before clocking in.'); return; }
         setSaving(true);
-        const startTime = Date.now();
-        const { data, error } = await supabase.from('time_entries').insert({
-            user_id: user.id, user_name: user.name,
-            start_time: startTime, status: 'active',
-            job_name: selectedJob, org_id: user.orgId,
-        }).select().single();
-        if (!error && data) {
-            const entry: TimeEntry = { id: data.id, userId: data.user_id, userName: data.user_name, startTime: data.start_time, endTime: null, status: 'active', jobName: data.job_name, orgId: data.org_id };
-            setActiveEntry(entry);
-            setEntries(prev => [entry, ...prev]);
-        }
+        const entry = await clockIn({
+            userId: user.id, userName: user.name,
+            jobName: selectedJob, orgId: user.orgId,
+        });
+        setActiveEntry(entry);
+        setEntries(prev => [entry, ...prev]);
         setSaving(false);
     };
 
-    const clockOut = async () => {
+    const handleClockOut = async () => {
         if (!activeEntry) return;
         setSaving(true);
-        const endTime = Date.now();
-        const hours = (endTime - activeEntry.startTime) / 3600000;
+        const hours = (Date.now() - activeEntry.startTime) / 3600000;
         const totalPay = +(hours * user.rate).toFixed(2);
-        await supabase.from('time_entries').update({
-            end_time: endTime, status: 'completed', total_pay: totalPay, notes,
-        }).eq('id', activeEntry.id);
+        await clockOut(activeEntry.id, { notes, totalPay });
         setActiveEntry(null);
         setNotes('');
         fetchData();
@@ -131,7 +116,7 @@ export default function EmployeeTimeClockPage({ user }: Props) {
 
                 <button
                     className={activeEntry ? 'clock-btn-out' : 'clock-btn-in'}
-                    onClick={activeEntry ? clockOut : clockIn}
+                    onClick={activeEntry ? handleClockOut : handleClockIn}
                     disabled={saving}
                 >
                     {activeEntry ? 'OUT' : 'IN'}
