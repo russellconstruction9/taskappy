@@ -17,6 +17,18 @@ const Logo = () => (
     </svg>
 );
 
+const MenuIcon = () => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+);
+
+const CloseIcon = () => (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+);
+
 const navItems: { view: AdminView; label: string; icon: React.ReactNode }[] = [
     {
         view: 'dashboard', label: 'Dashboard', icon: (
@@ -57,10 +69,64 @@ const navItems: { view: AdminView; label: string; icon: React.ReactNode }[] = [
 
 export default function AdminApp({ user, onLogout }: Props) {
     const [view, setView] = useState<AdminView>('dashboard');
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+    const handleNavClick = (newView: AdminView) => {
+        setView(newView);
+        setMobileMenuOpen(false);
+    };
 
     return (
         <div className="admin-shell">
-            {/* Sidebar */}
+            {/* Mobile Header */}
+            <header className="admin-mobile-header">
+                <div className="admin-mobile-header-left">
+                    <div className="admin-sidebar-logomark"><Logo /></div>
+                    <span className="admin-mobile-brand">Work<span>Flow</span></span>
+                </div>
+                <button
+                    className="admin-mobile-menu-btn"
+                    onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                    aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+                >
+                    {mobileMenuOpen ? <CloseIcon /> : <MenuIcon />}
+                </button>
+            </header>
+
+            {/* Mobile Menu Overlay */}
+            {mobileMenuOpen && (
+                <div className="admin-mobile-overlay" onClick={() => setMobileMenuOpen(false)}>
+                    <nav className="admin-mobile-menu" onClick={e => e.stopPropagation()}>
+                        {navItems.map(item => (
+                            <button
+                                key={item.view}
+                                className={`admin-mobile-nav-btn${view === item.view ? ' active' : ''}`}
+                                onClick={() => handleNavClick(item.view)}
+                            >
+                                {item.icon}
+                                {item.label}
+                            </button>
+                        ))}
+                        <div className="admin-mobile-user">
+                            <div className="admin-mobile-avatar">
+                                {user.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                                <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{user.name}</div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-3)' }}>Owner</div>
+                            </div>
+                        </div>
+                        <button className="admin-mobile-nav-btn logout" onClick={onLogout}>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+                            </svg>
+                            Sign Out
+                        </button>
+                    </nav>
+                </div>
+            )}
+
+            {/* Sidebar (desktop only) */}
             <aside className="admin-sidebar">
                 <div className="admin-sidebar-logo">
                     <div className="admin-sidebar-logomark"><Logo /></div>
