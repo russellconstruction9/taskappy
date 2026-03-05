@@ -116,7 +116,7 @@ export default function EmployeeTimeClockPage({ user }: Props) {
 
                 <button
                     className={activeEntry ? 'clock-btn-out' : 'clock-btn-in'}
-                    onClick={activeEntry ? clockOut : clockIn}
+                    onClick={activeEntry ? handleClockOut : handleClockIn}
                     disabled={saving}
                 >
                     {activeEntry ? 'OUT' : 'IN'}
