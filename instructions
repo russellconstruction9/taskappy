@@ -1,0 +1,34 @@
+# App Overview & Workflow
+
+This application is a Workflow Task Manager designed for organizations to track employee hours, jobs, and tasks. It handles two primary types of users: **Admins** (Managers/Owners) and **Employees**.
+
+## 1. Authentication & Onboarding Flow
+The application uses Supabase for authentication and profile management, with a custom organization structure.
+
+*   **Registration ([RegisterPage.tsx](cci:7://file:///C:/Users/russe/pwa-starter/src/pages/RegisterPage.tsx:0:0-0:0))**:
+    *   New users can sign up and create a new Organization.
+    *   The creator automatically becomes an `admin` for that organization.
+*   **Login ([LoginPage.tsx](cci:7://file:///C:/Users/russe/pwa-starter/src/pages/LoginPage.tsx:0:0-0:0) & [AdminLoginPage.tsx](cci:7://file:///C:/Users/russe/pwa-starter/src/pages/AdminLoginPage.tsx:0:0-0:0))**:
+    *   **Admin Login**: Uses standard email/password authentication.
+    *   **Employee Login**: Uses a PIN-based login system where the employee selects their name (and enters a PIN) rather than a traditional email/password, making it easier for field workers to clock in.
+
+## 2. Admin Workflow ([AdminApp.tsx](cci:7://file:///C:/Users/russe/pwa-starter/src/pages/AdminApp.tsx:0:0-0:0))
+When an Admin logs in, they are directed to the Admin Dashboard where they have full control over the organization's settings, team, and jobs.
+
+*   **Dashboard**: Overview of current active jobs, team status, and recent activity.
+*   **Manage Employees ([admin/AdminEmployeesPage.tsx](cci:7://file:///C:/Users/russe/pwa-starter/src/pages/admin/AdminEmployeesPage.tsx:0:0-0:0))**: Admins can add new employees. When added, the app creates a simplified "dummy" email for them (e.g., `john.doe@orgslug.taskpoint.local`) and assigns them a PIN for easy login.
+*   **Manage Jobs & Tasks**: Admins can create new jobs (e.g., specific construction sites or projects) and assign tasks to those jobs.
+*   **Time Tracking Review**: Admins can view logs of when employees clocked in/out or started specific tasks, allowing them to calculate payroll based on the employee's assigned hourly rate.
+
+## 3. Employee Workflow ([EmployeeApp.tsx](cci:7://file:///C:/Users/russe/pwa-starter/src/pages/EmployeeApp.tsx:0:0-0:0))
+When an Employee logs in, the interface is streamlined for quick actions on the go (like from a mobile device).
+
+*   **Jobs/Task List (`employee/EmployeeTasksPage.tsx`)**: Employees see a list of jobs or tasks assigned to them or available for their organization.
+*   **Clock In/Out**: Employees can start their shift or log into a specific job.
+*   **Status Updates**: When an employee presses "Start Job" or completes a task, the event is recorded in the database, allowing admins to see real-time progress.
+
+## 4. Tech Stack & Integration Notes
+*   **Frontend**: React + TypeScript + Vite. Configured as a Progressive Web App (PWA) via `vite-plugin-pwa` so it can be installed on employee phones.
+*   **Backend (Auth & Realtime)**: Supabase is used primarily for Authentication (`profiles`, `organizations`), taking advantage of Row Level Security (RLS) to ensure users only see data for their specific `org_id`.
+*   **Database (Neon)**: We recently integrated Neon Postgres (`@neondatabase/serverless`) to handle advanced queries, branching, or specific database needs using the `sql` client configured in [src/lib/neon.ts](cci:7://file:///c:/Users/russe/pwa-starter/src/lib/neon.ts:0:0-0:0).
+*   **Edge Functions**: Certain privileged actions (like an admin creating an employee user account without logging themselves out) are delegated to Supabase Edge Functions (e.g., `create-user`, `delete-user`).

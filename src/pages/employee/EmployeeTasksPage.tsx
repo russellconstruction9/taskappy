@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { getTasksByEmployee, updateTaskStatus } from '../../lib/db';
 import { UserProfile, Task } from '../../types';
 
 interface Props { user: UserProfile; }
@@ -38,35 +38,22 @@ export default function EmployeeTasksPage({ user }: Props) {
 
     useEffect(() => {
         fetchTasks();
-        // Realtime subscription
+        // Poll for updates
         if (!user.orgId) return;
-        const ch = supabase.channel(`emp-tasks-${user.orgId}`)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `org_id=eq.${user.orgId}` }, fetchTasks)
-            .subscribe();
-        return () => { supabase.removeChannel(ch); };
+        const poll = setInterval(fetchTasks, 30000);
+        return () => { clearInterval(poll); };
     }, [user.orgId]);
 
     const fetchTasks = async () => {
         if (!user.orgId) return;
-        const { data } = await supabase
-            .from('tasks')
-            .select('*')
-            .eq('org_id', user.orgId)
-            .eq('assigned_to', user.name)
-            .order('created_at', { ascending: false });
-        if (data) setTasks(data.map(row => ({
-            id: row.id, title: row.title, description: row.description ?? '',
-            location: row.location ?? '', assignedTo: row.assigned_to ?? '',
-            dueDate: row.due_date ?? '', priority: row.priority ?? 'Medium',
-            status: row.status ?? 'Pending', createdAt: row.created_at ?? 0,
-            jobName: row.job_name, orgId: row.org_id,
-        })));
+        const data = await getTasksByEmployee(user.orgId, user.name);
+        setTasks(data);
         setLoading(false);
     };
 
     const toggleComplete = async (task: Task) => {
         const newStatus = task.status === 'Completed' ? 'In Progress' : 'Completed';
-        await supabase.from('tasks').update({ status: newStatus }).eq('id', task.id);
+        await updateTaskStatus(task.id, newStatus);
         setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t));
     };
 

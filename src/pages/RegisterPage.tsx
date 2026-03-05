@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { signUpAdmin } from '../lib/auth';
 import { UserProfile } from '../types';
 
 interface Props {
@@ -33,43 +33,14 @@ export default function RegisterPage({ onBack, onRegistered }: Props) {
         setLoading(true);
 
         try {
-            // 1. Sign up admin user first — so we have an authenticated session for RLS
-            const { data: auth, error: authError } = await supabase.auth.signUp({
+            const profile = await signUpAdmin({
+                name: adminName.trim(),
                 email: email.trim(),
                 password,
-                options: {
-                    data: { name: adminName.trim(), role: 'admin', rate: 0 }
-                }
+                companyName: companyName.trim(),
+                slug,
             });
-            if (authError || !auth.user) throw new Error(authError?.message || 'Signup failed.');
-
-            // 2. Insert organization now that we're authenticated (satisfies RLS)
-            const { data: org, error: orgError } = await supabase
-                .from('organizations')
-                .insert({ name: companyName.trim(), slug })
-                .select('id, name, slug')
-                .single();
-            if (orgError) {
-                if (orgError.code === '23505') throw new Error('That company code is already taken. Try a different name.');
-                throw orgError;
-            }
-
-            // 3. Upsert profile with org_id (trigger may have already created it without org_id)
-            await supabase.from('profiles').upsert({
-                id: auth.user.id,
-                name: adminName.trim(),
-                rate: 0,
-                role: 'admin',
-                org_id: org.id,
-            }, { onConflict: 'id' });
-
-            onRegistered({
-                id: auth.user.id,
-                name: adminName.trim(),
-                rate: 0,
-                role: 'admin',
-                orgId: org.id,
-            });
+            onRegistered(profile);
         } catch (err: any) {
             setError(err.message || 'Registration failed.');
         } finally {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { getProfilesByOrg, getOrgById } from '../../lib/db';
+import { createEmployee, deleteEmployee } from '../../lib/auth';
 import { UserProfile } from '../../types';
 
 interface Props { user: UserProfile; }
@@ -20,8 +21,8 @@ export default function AdminEmployeesPage({ user }: Props) {
 
     const fetchEmployees = async () => {
         if (!user.orgId) return;
-        const { data } = await supabase.from('profiles').select('id, name, rate, role').eq('org_id', user.orgId).order('name');
-        if (data) setEmployees(data);
+        const data = await getProfilesByOrg(user.orgId);
+        setEmployees(data);
         setLoading(false);
     };
 
@@ -33,24 +34,16 @@ export default function AdminEmployeesPage({ user }: Props) {
 
         try {
             // Get org slug
-            const { data: org } = await supabase.from('organizations').select('slug').eq('id', user.orgId).single();
+            const org = await getOrgById(user.orgId);
             if (!org) throw new Error('Could not find your organization.');
 
-            const cleanName = form.name.trim().toLowerCase().replace(/\s+/g, '.');
-            const email = `${cleanName}@${org.slug}.taskpoint.local`;
-
-            // Call the Supabase Edge Function to create the user (server-side)
-            const { data: { session } } = await supabase.auth.getSession();
-            const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-                body: JSON.stringify({ name: form.name.trim(), email, password: form.pin, rate: parseFloat(form.rate) || 0, orgId: user.orgId }),
+            await createEmployee({
+                name: form.name.trim(),
+                pin: form.pin,
+                rate: parseFloat(form.rate) || 0,
+                orgId: user.orgId,
+                orgSlug: org.slug,
             });
-
-            if (!resp.ok) {
-                const errBody = await resp.json().catch(() => ({}));
-                throw new Error(errBody.error || `Failed to create user (${resp.status})`);
-            }
 
             setShowModal(false);
             setForm({ name: '', pin: '', rate: '' });
@@ -65,13 +58,7 @@ export default function AdminEmployeesPage({ user }: Props) {
     const handleDelete = async (emp: Employee) => {
         if (!confirm(`Remove ${emp.name} from your team? This cannot be undone.`)) return;
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-user`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-                body: JSON.stringify({ userId: emp.id }),
-            });
-            if (!resp.ok) throw new Error('Failed to delete user.');
+            await deleteEmployee(emp.id);
             fetchEmployees();
         } catch (err: any) {
             alert(err.message || 'Failed to delete employee.');

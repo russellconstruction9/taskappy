@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { getTimeEntriesByOrg } from '../../lib/db';
 import { UserProfile, TimeEntry } from '../../types';
 
 interface Props { user: UserProfile; }
@@ -23,13 +23,9 @@ export default function AdminTimePage({ user }: Props) {
 
     useEffect(() => {
         if (!user.orgId) return;
-        supabase.from('time_entries').select('*').eq('org_id', user.orgId).order('start_time', { ascending: false }).limit(200)
-            .then(({ data }) => {
-                if (data) setEntries(data.map(r => ({
-                    id: r.id, userId: r.user_id, userName: r.user_name,
-                    startTime: r.start_time, endTime: r.end_time, status: r.status,
-                    jobName: r.job_name, notes: r.notes, totalPay: r.total_pay, orgId: r.org_id,
-                })));
+        getTimeEntriesByOrg(user.orgId, 200)
+            .then(data => {
+                setEntries(data);
                 setLoading(false);
             });
     }, [user.orgId]);

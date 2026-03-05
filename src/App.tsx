@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from './lib/supabase';
+import { getCurrentUser, signOut, reloadProfile } from './lib/auth';
 import { UserProfile } from './types';
 import LoginPage from './pages/LoginPage';
 import AdminLoginPage from './pages/AdminLoginPage';
@@ -14,49 +14,27 @@ export default function App() {
     const [screen, setScreen] = useState<Screen>('login');
     const [loading, setLoading] = useState(true);
 
-    // On mount — restore session from Supabase
+    // On mount — restore session from localStorage
     useEffect(() => {
         const restoreSession = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session) await loadProfile(session.user.id);
+            const stored = getCurrentUser();
+            if (stored) {
+                // Refresh profile from DB to ensure it's still valid
+                const refreshed = await reloadProfile(stored.id);
+                if (refreshed) setUser(refreshed);
+            }
             setLoading(false);
         };
-
         restoreSession();
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            if (event === 'SIGNED_OUT') { setUser(null); return; }
-            if (session && !user) await loadProfile(session.user.id);
-        });
-
-        return () => subscription.unsubscribe();
     }, []);
-
-    const loadProfile = async (userId: string) => {
-        const { data } = await supabase
-            .from('profiles')
-            .select('id, name, rate, role, org_id')
-            .eq('id', userId)
-            .single();
-
-        if (data) {
-            setUser({
-                id: data.id,
-                name: data.name,
-                rate: data.rate ?? 0,
-                role: data.role,
-                orgId: data.org_id,
-            });
-        }
-    };
 
     const handleLogin = (profile: UserProfile) => {
         setUser(profile);
         setScreen('login');
     };
 
-    const handleLogout = async () => {
-        await supabase.auth.signOut();
+    const handleLogout = () => {
+        signOut();
         setUser(null);
         setScreen('login');
     };
