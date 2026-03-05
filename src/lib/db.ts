@@ -40,6 +40,14 @@ export async function getEmployeesByOrg(orgId: string): Promise<{ id: string; na
     return rows as unknown as { id: string; name: string }[];
 }
 
+export async function updateProfile(userId: string, data: { name: string; rate: number }) {
+    await sql`
+        UPDATE public.profiles
+        SET name = ${data.name}, rate = ${data.rate}
+        WHERE user_id = ${userId}
+    `;
+}
+
 // ─── Jobs ──────────────────────────────────────────────────────────────────
 
 export async function getJobsByOrg(orgId: string): Promise<Job[]> {
