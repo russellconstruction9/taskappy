@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { getTasksByOrg, getEmployeesByOrg, getActiveJobsByOrg, createTask, updateTask, deleteTask as removeTask } from '../../lib/db';
-import { UserProfile, Task, Job } from '../../types';
+import {
+    getTasksByOrg, getEmployeesByOrg, getActiveJobsByOrg,
+    createTask, updateTask, deleteTask as removeTask,
+    getSubTasksByTaskId, createSubTask, deleteSubTask, getSubTaskCountsByTaskIds,
+} from '../../lib/db';
+import { UserProfile, Task, SubTask, Job } from '../../types';
 
 interface Props { user: UserProfile; }
 
@@ -24,6 +28,12 @@ export default function AdminTasksPage({ user }: Props) {
     const [filterStatus, setFilterStatus] = useState('all');
     const [search, setSearch] = useState('');
 
+    // Subtask state
+    const [subtasks, setSubtasks] = useState<SubTask[]>([]);
+    const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+    const [addingSubtask, setAddingSubtask] = useState(false);
+    const [subtaskCounts, setSubtaskCounts] = useState<Record<string, { total: number; done: number }>>({});
+
     useEffect(() => { fetchAll(); }, [user.orgId]);
 
     const fetchAll = async () => {
@@ -36,11 +46,28 @@ export default function AdminTasksPage({ user }: Props) {
         setTasks(t);
         setEmployees(e);
         setJobs(j);
+        // Fetch subtask counts
+        const ids = t.map(tk => tk.id);
+        const counts = await getSubTaskCountsByTaskIds(ids);
+        setSubtaskCounts(counts);
         setLoading(false);
     };
 
-    const openCreate = () => { setEditing(null); setForm({ title: '', description: '', location: '', assignedTo: '', dueDate: '', priority: 'Medium', status: 'Pending', jobName: '' }); setShowModal(true); };
-    const openEdit = (task: Task) => { setEditing(task); setForm({ title: task.title, description: task.description, location: task.location, assignedTo: task.assignedTo, dueDate: task.dueDate, priority: task.priority, status: task.status, jobName: task.jobName ?? '' }); setShowModal(true); };
+    const openCreate = () => {
+        setEditing(null);
+        setForm({ title: '', description: '', location: '', assignedTo: '', dueDate: '', priority: 'Medium', status: 'Pending', jobName: '' });
+        setSubtasks([]);
+        setNewSubtaskTitle('');
+        setShowModal(true);
+    };
+    const openEdit = async (task: Task) => {
+        setEditing(task);
+        setForm({ title: task.title, description: task.description, location: task.location, assignedTo: task.assignedTo, dueDate: task.dueDate, priority: task.priority, status: task.status, jobName: task.jobName ?? '' });
+        setNewSubtaskTitle('');
+        setShowModal(true);
+        const subs = await getSubTasksByTaskId(task.id);
+        setSubtasks(subs);
+    };
 
     const handleSave = async () => {
         if (!form.title.trim()) return;
@@ -57,9 +84,39 @@ export default function AdminTasksPage({ user }: Props) {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Delete this task?')) return;
+        if (!confirm('Delete this task and all its checklist items?')) return;
         await removeTask(id);
         setTasks(prev => prev.filter(t => t.id !== id));
+    };
+
+    const handleAddSubtask = async () => {
+        if (!newSubtaskTitle.trim() || !editing) return;
+        setAddingSubtask(true);
+        const sub = await createSubTask({ taskId: editing.id, title: newSubtaskTitle.trim(), sortOrder: subtasks.length });
+        setSubtasks(prev => [...prev, sub]);
+        setNewSubtaskTitle('');
+        setAddingSubtask(false);
+        setSubtaskCounts(prev => {
+            const cur = prev[editing.id] || { total: 0, done: 0 };
+            return { ...prev, [editing.id]: { ...cur, total: cur.total + 1 } };
+        });
+    };
+
+    const handleDeleteSubtask = async (subId: string) => {
+        if (!editing) return;
+        const sub = subtasks.find(s => s.id === subId);
+        await deleteSubTask(subId);
+        setSubtasks(prev => prev.filter(s => s.id !== subId));
+        setSubtaskCounts(prev => {
+            const cur = prev[editing.id] || { total: 0, done: 0 };
+            return {
+                ...prev,
+                [editing.id]: {
+                    total: Math.max(0, cur.total - 1),
+                    done: sub?.completed ? Math.max(0, cur.done - 1) : cur.done,
+                },
+            };
+        });
     };
 
     const filtered = tasks.filter(t => {
@@ -123,6 +180,11 @@ export default function AdminTasksPage({ user }: Props) {
                                 {task.assignedTo && <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--color-text-2)' }}>👤 {task.assignedTo}</span>}
                                 {task.jobName && <span className="badge" style={{ background: '#fff7ed', color: 'var(--color-brand)' }}>📍 {task.jobName}</span>}
                                 {task.dueDate && <span style={{ fontSize: '0.75rem', color: isOverdue ? 'var(--color-danger)' : 'var(--color-text-3)' }}>📅 {task.dueDate}{isOverdue ? ' — Overdue' : ''}</span>}
+                                {(() => { const counts = subtaskCounts[task.id]; return counts && counts.total > 0 ? (
+                                    <span className="badge" style={{ background: counts.done === counts.total ? '#dcfce7' : '#f1f5f9', color: counts.done === counts.total ? '#166534' : '#64748b' }}>
+                                        ☑ {counts.done}/{counts.total} items
+                                    </span>
+                                ) : null; })()}
                             </div>
                         </div>
                     );
@@ -132,12 +194,12 @@ export default function AdminTasksPage({ user }: Props) {
             {/* Task Modal */}
             {showModal && (
                 <div className="modal-backdrop" onClick={() => setShowModal(false)}>
-                    <div className="modal" onClick={e => e.stopPropagation()}>
+                    <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
                             <h2 className="modal-title">{editing ? 'Edit Task' : 'New Task'}</h2>
                             <button className="icon-btn" onClick={() => setShowModal(false)}>✕</button>
                         </div>
-                        <div className="modal-body">
+                        <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
                             <div className="input-group">
                                 <label className="input-label">Title *</label>
                                 <input className="input" placeholder="Task title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
@@ -186,6 +248,63 @@ export default function AdminTasksPage({ user }: Props) {
                                     <input className="input" placeholder="Job location" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
                                 </div>
                             </div>
+
+                            {/* ── Subtasks / Line Items (only when editing) ── */}
+                            {editing && (
+                                <div className="subtask-section">
+                                    <div className="subtask-section-header">
+                                        <label className="input-label" style={{ margin: 0 }}>
+                                            Checklist Items
+                                            {subtasks.length > 0 && <span style={{ fontWeight: 400, color: 'var(--color-text-3)', marginLeft: 6 }}>
+                                                ({subtasks.filter(s => s.completed).length}/{subtasks.length} done)
+                                            </span>}
+                                        </label>
+                                    </div>
+
+                                    {subtasks.length > 0 && (
+                                        <div className="subtask-list">
+                                            {subtasks.map(sub => (
+                                                <div key={sub.id} className={`subtask-item${sub.completed ? ' completed' : ''}`}>
+                                                    <div className="subtask-check">
+                                                        {sub.completed
+                                                            ? <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--color-success)" stroke="white" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M9 12l2 2 4-4" /></svg>
+                                                            : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-3)" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="3" /></svg>
+                                                        }
+                                                    </div>
+                                                    <span className="subtask-title">{sub.title}</span>
+                                                    {sub.photoUrl && <span style={{ fontSize: '0.72rem', color: 'var(--color-text-3)' }}>📷</span>}
+                                                    <button className="icon-btn danger subtask-delete" onClick={() => handleDeleteSubtask(sub.id)} title="Remove">
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <div className="subtask-add-row">
+                                        <input
+                                            className="input"
+                                            placeholder="Add a checklist item…"
+                                            value={newSubtaskTitle}
+                                            onChange={e => setNewSubtaskTitle(e.target.value)}
+                                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddSubtask(); } }}
+                                        />
+                                        <button
+                                            className="btn btn-primary"
+                                            style={{ padding: '8px 14px', fontSize: '0.82rem' }}
+                                            onClick={handleAddSubtask}
+                                            disabled={addingSubtask || !newSubtaskTitle.trim()}
+                                        >
+                                            {addingSubtask ? '…' : '+ Add'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                            {!editing && (
+                                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-3)', margin: '4px 0 0', fontStyle: 'italic' }}>
+                                    Save the task first, then click it to add checklist items.
+                                </p>
+                            )}
                         </div>
                         <div className="modal-footer">
                             <button className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancel</button>

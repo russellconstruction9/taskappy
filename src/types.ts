@@ -36,6 +36,21 @@ export interface Task {
     orgId?: string;
 }
 
+// ─── Subtasks ─────────────────────────────────────────────────────────────────
+
+export interface SubTask {
+    id: string;
+    taskId: string;
+    title: string;
+    completed: boolean;
+    completedBy: string | null;
+    completedAt: number | null;
+    sortOrder: number;
+    photoUrl: string | null;
+    notes: string | null;
+    createdAt: number;
+}
+
 // ─── Time Entries ─────────────────────────────────────────────────────────────
 
 export interface TimeEntry {

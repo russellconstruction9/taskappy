@@ -1,5 +1,5 @@
 import { sql } from './neon';
-import { Task, Job, TimeEntry } from '../types';
+import { Task, Job, TimeEntry, SubTask } from '../types';
 
 // ─── Organizations ─────────────────────────────────────────────────────────
 
@@ -161,6 +161,86 @@ export async function updateTaskStatus(id: string, status: string) {
 
 export async function deleteTask(id: string) {
     await sql`DELETE FROM public.tasks WHERE id = ${id}`;
+}
+
+// ─── Subtasks ──────────────────────────────────────────────────────────────
+
+function mapSubTask(r: any): SubTask {
+    return {
+        id: r.id,
+        taskId: r.task_id,
+        title: r.title,
+        completed: r.completed ?? false,
+        completedBy: r.completed_by ?? null,
+        completedAt: r.completed_at ? Number(r.completed_at) : null,
+        sortOrder: Number(r.sort_order) || 0,
+        photoUrl: r.photo_url ?? null,
+        notes: r.notes ?? null,
+        createdAt: Number(r.created_at) || 0,
+    };
+}
+
+export async function getSubTasksByTaskId(taskId: string): Promise<SubTask[]> {
+    const rows = await sql`
+        SELECT * FROM public.subtasks
+        WHERE task_id = ${taskId}
+        ORDER BY sort_order, created_at
+    `;
+    return rows.map(mapSubTask);
+}
+
+export async function getSubTaskCountsByTaskIds(taskIds: string[]): Promise<Record<string, { total: number; done: number }>> {
+    if (taskIds.length === 0) return {};
+    const rows = await sql`
+        SELECT task_id,
+               COUNT(*)::int AS total,
+               COUNT(*) FILTER (WHERE completed = true)::int AS done
+        FROM public.subtasks
+        WHERE task_id = ANY(${taskIds})
+        GROUP BY task_id
+    `;
+    const map: Record<string, { total: number; done: number }> = {};
+    for (const r of rows) {
+        map[r.task_id] = { total: Number(r.total), done: Number(r.done) };
+    }
+    return map;
+}
+
+export async function createSubTask(subtask: { taskId: string; title: string; sortOrder?: number }): Promise<SubTask> {
+    const rows = await sql`
+        INSERT INTO public.subtasks (task_id, title, sort_order, created_at)
+        VALUES (${subtask.taskId}, ${subtask.title}, ${subtask.sortOrder ?? 0}, ${Date.now()})
+        RETURNING *
+    `;
+    return mapSubTask(rows[0]);
+}
+
+export async function toggleSubTask(id: string, completed: boolean, completedBy?: string): Promise<void> {
+    if (completed) {
+        await sql`
+            UPDATE public.subtasks
+            SET completed = true, completed_by = ${completedBy ?? null}, completed_at = ${Date.now()}
+            WHERE id = ${id}
+        `;
+    } else {
+        await sql`
+            UPDATE public.subtasks
+            SET completed = false, completed_by = NULL, completed_at = NULL
+            WHERE id = ${id}
+        `;
+    }
+}
+
+export async function updateSubTaskPhoto(id: string, photoUrl: string | null): Promise<void> {
+    await sql`UPDATE public.subtasks SET photo_url = ${photoUrl} WHERE id = ${id}`;
+}
+
+export async function updateSubTaskNotes(id: string, notes: string | null): Promise<void> {
+    await sql`UPDATE public.subtasks SET notes = ${notes} WHERE id = ${id}`;
+}
+
+export async function deleteSubTask(id: string): Promise<void> {
+    await sql`DELETE FROM public.subtasks WHERE id = ${id}`;
 }
 
 // ─── Time Entries ──────────────────────────────────────────────────────────

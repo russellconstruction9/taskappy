@@ -701,6 +701,184 @@ a { color: inherit; text-decoration: none; }
 .font-bold { font-weight: 700; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
+/* ─── Modal Large ────────────────────────────────────────────────────────── */
+.modal.modal-lg { max-width: 640px; }
+
+/* ─── Detail Meta Grid ──────────────────────────────────────────────────── */
+.detail-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+.detail-meta-item { display: flex; flex-direction: column; gap: 2px; }
+.detail-meta-label { font-size: 0.7rem; font-weight: 700; color: var(--color-text-3); text-transform: uppercase; letter-spacing: 0.04em; }
+.detail-meta-value { font-size: 0.85rem; font-weight: 600; color: var(--color-text); }
+
+/* ─── Subtask Section ───────────────────────────────────────────────────── */
+.subtask-section {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+.subtask-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+/* Subtask progress bar */
+.subtask-progress-bar {
+  height: 6px;
+  background: var(--color-bg);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.subtask-progress-fill {
+  height: 100%;
+  background: var(--color-success);
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+
+/* Subtask list */
+.subtask-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+/* Subtask item — admin (compact) */
+.subtask-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  transition: background var(--transition);
+}
+.subtask-item:hover { background: var(--color-bg); }
+.subtask-item.completed { opacity: 0.6; }
+
+.subtask-check {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.subtask-title {
+  flex: 1;
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+.subtask-title.done {
+  text-decoration: line-through;
+  color: var(--color-text-3);
+}
+.subtask-delete {
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+.subtask-item:hover .subtask-delete { opacity: 1; }
+
+/* Subtask add row */
+.subtask-add-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.subtask-add-row .input { flex: 1; }
+
+/* ─── Employee subtask overrides ─────────────────────────────────────────── */
+.subtask-item.employee {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+}
+.subtask-item.employee.completed {
+  opacity: 1;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+.subtask-main-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.subtask-checkbox {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+.subtask-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.subtask-done-by {
+  font-size: 0.7rem;
+  color: var(--color-success);
+  font-weight: 500;
+}
+.subtask-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Photo preview */
+.subtask-photo-wrap {
+  padding: 6px 0 2px 30px;
+}
+.subtask-photo {
+  max-width: 180px;
+  max-height: 120px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  transition: transform var(--transition);
+}
+.subtask-photo:hover { transform: scale(1.03); }
+
+/* Notes display */
+.subtask-notes-display {
+  padding: 6px 10px;
+  margin: 4px 0 0 30px;
+  background: #fffbeb;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.subtask-notes-display:hover { background: #fef3c7; }
+
+/* Note editing */
+.subtask-note-edit {
+  padding: 6px 0 0 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 /* ─── Mobile responsive ──────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .admin-sidebar { display: none; }
@@ -708,4 +886,7 @@ a { color: inherit; text-decoration: none; }
   .admin-main { padding: 16px; }
   .stat-grid { grid-template-columns: 1fr 1fr; }
   .grid-2 { grid-template-columns: 1fr; }
+  .modal.modal-lg { max-width: 100%; }
+  .detail-meta-grid { grid-template-columns: 1fr 1fr; }
+  .subtask-photo { max-width: 140px; }
 }
